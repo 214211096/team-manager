@@ -22,6 +22,7 @@ import EventNoteIcon from '@mui/icons-material/EventNote';
 import { api, ApiError } from '../api/client';
 import type { AttendanceDay, AttendanceEntry, AttendanceStatus } from '../api/types';
 import { attendanceStatuses, formatDate, formatSentAt, plannedLabel, statusColor, statusLabel, todayIso } from '../attendance';
+import { useDayOff } from '../holidays';
 
 interface Draft {
   status: AttendanceStatus | null;
@@ -48,6 +49,7 @@ function toDrafts(day: AttendanceDay): Record<number, Draft> {
 
 export default function AttendancePage() {
   const [date, setDate] = useState(todayIso);
+  const dayOff = useDayOff(date);
   const [day, setDay] = useState<AttendanceDay | null>(null);
   const [drafts, setDrafts] = useState<Record<number, Draft>>({});
   const [dirty, setDirty] = useState(false);
@@ -167,6 +169,7 @@ export default function AttendancePage() {
         {dirty && <Chip size="small" label="יש שינויים שלא נשמרו" />}
       </Stack>
 
+      {dayOff && <Alert severity="info">{dayOff}: לא יום עבודה. אפשר להזין בכל זאת אם עבדו.</Alert>}
       {day.locked && <Alert severity="info">החודש נעול אחרי שליחה לשכר, אי אפשר לשנות נוכחות.</Alert>}
       {message && <Alert severity={message.type}>{message.text}</Alert>}
 

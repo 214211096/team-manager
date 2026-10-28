@@ -58,14 +58,6 @@ export function calculateRating(completed: number, target: number, weakBelow: nu
   return { percent: Math.round(percent * 100) / 100, rating };
 }
 
-/** יום העבודה הקודם (א'-ה'), בפורמט yyyy-MM-dd. */
-export function previousWorkdayIso(): string {
-  const d = new Date();
-  do d.setDate(d.getDate() - 1);
-  while (d.getDay() === 5 || d.getDay() === 6);
-  return toIso(d);
-}
-
 /** תיאור קצר של רישום מלוח השנה: "חופשה", "אחר – השתלמות", "יום חלקי 50%". */
 export function plannedLabel(p: PlannedDay): string {
   if (p.kind === 'PartialDay') return `יום חלקי ${p.workPercent}%`;

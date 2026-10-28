@@ -3,7 +3,10 @@ using TeamManager.Api.Dtos;
 
 namespace TeamManager.Api.Services;
 
-/// <summary>קובץ אקסל של הסיכום החודשי: גיליון מימין לשמאל, שורה לכל עובדת ושורת סיכום לצוות.</summary>
+/// <summary>
+/// קובץ אקסל של הסיכום החודשי: גיליון מימין לשמאל, שורה לכל עובדת ושורת סיכום לצוות.
+/// אחרי עמודות הנוכחות יש עמודה לכל יום בחודש עם מספר הפריטים שבוצעו, ובסוף סה״כ חודשי.
+/// </summary>
 public static class MonthlySummaryExcel
 {
     public const string ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -13,11 +16,17 @@ public static class MonthlySummaryExcel
     private static readonly string[] Headers =
     [
         "שם", "ימי נוכחות", "מתוכם ימים חלקיים", "חופשה", "מחלה", "אחר",
-        "ימים חלש", "ימים טוב", "ימים מעולה", "ימי נוכחות בלי ביצוע", "ממוצע עמידה ביעד (%)",
+        "ימי נוכחות בלי ביצוע", "ממוצע עמידה ביעד (%)",
     ];
 
-    public static byte[] Build(MonthlySummaryDto s)
+    private const int AverageColumn = 8;
+    private const int FirstDayColumn = AverageColumn + 1;
+
+    public static byte[] Build(MonthlySummaryDto s, IReadOnlyDictionary<int, Dictionary<int, int>> dailyOutput)
     {
+        var days = DateTime.DaysInMonth(s.Year, s.Month);
+        var totalColumn = FirstDayColumn + days;
+
         using var workbook = new XLWorkbook();
         var ws = workbook.Worksheets.Add("סיכום");
         ws.RightToLeft = true;
@@ -28,7 +37,17 @@ public static class MonthlySummaryExcel
 
         const int headerRow = 3;
         for (var c = 0; c < Headers.Length; c++) ws.Cell(headerRow, c + 1).Value = Headers[c];
-        var header = ws.Range(headerRow, 1, headerRow, Headers.Length);
+        for (var d = 1; d <= days; d++)
+        {
+            var column = FirstDayColumn + d - 1;
+            ws.Cell(headerRow, column).Value = $"{d}/{s.Month}";
+            // שישי, שבת וחגים ברקע אפור, כדי שיהיה קל להתמצא בשבועות.
+            if (!HolidayCalendar.IsWorkday(new DateOnly(s.Year, s.Month, d)))
+                ws.Column(column).Style.Fill.BackgroundColor = XLColor.FromHtml("#F2F2F2");
+        }
+        ws.Cell(headerRow, totalColumn).Value = "סה״כ הספק";
+
+        var header = ws.Range(headerRow, 1, headerRow, totalColumn);
         header.Style.Font.Bold = true;
         header.Style.Fill.BackgroundColor = XLColor.FromHtml("#DDE5EE");
 
@@ -41,24 +60,28 @@ public static class MonthlySummaryExcel
             ws.Cell(row, 4).Value = r.VacationDays;
             ws.Cell(row, 5).Value = r.SickDays;
             ws.Cell(row, 6).Value = r.OtherDays;
-            ws.Cell(row, 7).Value = r.WeakDays;
-            ws.Cell(row, 8).Value = r.GoodDays;
-            ws.Cell(row, 9).Value = r.ExcellentDays;
-            ws.Cell(row, 10).Value = r.DaysWithoutOutput;
-            if (r.AveragePercent is { } avg) ws.Cell(row, 11).Value = avg;
+            ws.Cell(row, 7).Value = r.DaysWithoutOutput;
+            if (r.AveragePercent is { } avg) ws.Cell(row, AverageColumn).Value = avg;
+
+            if (dailyOutput.TryGetValue(r.EmployeeId, out var byDay))
+                foreach (var (day, completed) in byDay)
+                    ws.Cell(row, FirstDayColumn + day - 1).Value = completed;
+            ws.Cell(row, totalColumn).FormulaA1 =
+                $"SUM({ws.Cell(row, FirstDayColumn).Address}:{ws.Cell(row, totalColumn - 1).Address})";
             row++;
         }
 
         // שורת צוות: סכומים, וממוצע על כל ימי הביצוע של הצוות.
         ws.Cell(row, 1).Value = "סה״כ צוות";
-        for (var c = 2; c <= 10; c++)
+        foreach (var c in Enumerable.Range(2, AverageColumn - 2).Concat(Enumerable.Range(FirstDayColumn, days + 1)))
             ws.Cell(row, c).FormulaA1 = $"SUM({ws.Cell(headerRow + 1, c).Address}:{ws.Cell(row - 1, c).Address})";
-        if (s.TeamAveragePercent is { } team) ws.Cell(row, 11).Value = team;
-        ws.Range(row, 1, row, Headers.Length).Style.Font.Bold = true;
-        ws.Range(row, 1, row, Headers.Length).Style.Border.TopBorder = XLBorderStyleValues.Thin;
+        if (s.TeamAveragePercent is { } team) ws.Cell(row, AverageColumn).Value = team;
+        ws.Range(row, 1, row, totalColumn).Style.Font.Bold = true;
+        ws.Range(row, 1, row, totalColumn).Style.Border.TopBorder = XLBorderStyleValues.Thin;
 
-        ws.Column(11).Style.NumberFormat.Format = "0.00";
-        ws.Columns(1, Headers.Length).AdjustToContents();
+        ws.Column(AverageColumn).Style.NumberFormat.Format = "0.00";
+        ws.Columns(FirstDayColumn, totalColumn).Style.NumberFormat.Format = "#,##0";
+        ws.Columns(1, totalColumn).AdjustToContents();
 
         using var stream = new MemoryStream();
         workbook.SaveAs(stream);

@@ -158,7 +158,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-/** ימים (חגים) שבהם לא נשלחת תזכורת: בוחרים תאריך ומוסיפים לרשימה. */
+/** ימי חופש נוספים שבהם לא נשלחת תזכורת (חגים ושישי-שבת מזוהים אוטומטית). */
 function NoReminderDates({
   value,
   onChange,
@@ -179,12 +179,12 @@ function NoReminderDates({
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
         <TextField
-          label="ימים ללא תזכורת (חגים)"
+          label="ימי חופש נוספים ללא תזכורת"
           type="date"
           value={pending}
           onChange={(e) => setPending(e.target.value)}
           error={!!error}
-          helperText={error ?? 'בימים אלה לא תישלח תזכורת נוכחות'}
+          helperText={error ?? 'חגים ושישי-שבת מזוהים אוטומטית. כאן מוסיפים ימים אחרים, למשל ערב חג או גשר'}
           slotProps={{ inputLabel: { shrink: true } }}
           sx={{ flexGrow: 1 }}
         />

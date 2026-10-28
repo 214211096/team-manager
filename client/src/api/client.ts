@@ -10,6 +10,7 @@ import type {
   DailyStatusEntry,
   Employee,
   EmployeeUpsert,
+  Holiday,
   MonthlySummary,
   ScheduleEntry,
   ScheduleEntryInput,
@@ -69,12 +70,15 @@ export const api = {
   changePassword: (currentPassword: string, newPassword: string) =>
     request<void>('POST', '/api/auth/change-password', { currentPassword, newPassword }),
 
-  employees: (includeInactive = false) =>
-    request<Employee[]>('GET', `/api/employees?includeInactive=${includeInactive}`),
+  employees: (includeInactive = false, archived = false) =>
+    request<Employee[]>('GET', `/api/employees?includeInactive=${includeInactive}&archived=${archived}`),
   createEmployee: (data: EmployeeUpsert) => request<Employee>('POST', '/api/employees', data),
   updateEmployee: (id: number, data: EmployeeUpsert) =>
     request<Employee>('PUT', `/api/employees/${id}`, data),
   deleteEmployee: (id: number) => request<void>('DELETE', `/api/employees/${id}`),
+  restoreEmployee: (id: number) => request<Employee>('POST', `/api/employees/${id}/restore`),
+
+  holidays: (from: string, to: string) => request<Holiday[]>('GET', `/api/holidays?from=${from}&to=${to}`),
 
   attendance: (date: string) => request<AttendanceDay>('GET', `/api/attendance/${date}`),
   saveAttendance: (date: string, entries: AttendanceEntry[]) =>

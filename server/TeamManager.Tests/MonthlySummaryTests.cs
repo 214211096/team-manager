@@ -49,6 +49,21 @@ public class MonthlySummaryRulesTests
     }
 
     [Fact]
+    public void Daily_output_counts_only_present_days()
+    {
+        Attendance[] attendance = [Att(Rachel, 1, AttendanceStatus.Present), Att(Rachel, 2, AttendanceStatus.Sick)];
+        DailyStatus[] statuses =
+        [
+            new() { EmployeeId = Rachel.Id, Date = D(1), Completed = 40 },
+            new() { EmployeeId = Rachel.Id, Date = D(2), Completed = 50 },
+        ];
+
+        var daily = MonthlySummaryRules.DailyOutput(attendance, statuses);
+
+        Assert.Equal(new Dictionary<int, int> { [1] = 40 }, daily[Rachel.Id]);
+    }
+
+    [Fact]
     public void Output_on_a_day_marked_absent_is_ignored()
     {
         // לא אמור לקרות (סימון היעדרות מוחק ביצוע), אבל אם יש נתון ישן הוא לא נספר.
@@ -123,7 +138,13 @@ public class MonthlySummaryRulesTests
             new(2, "שרה", true, 2, 0, 0, 1, 0, 0, 2, 0, 0, 85m),
         ]);
 
-        using var workbook = new XLWorkbook(new MemoryStream(MonthlySummaryExcel.Build(s)));
+        var daily = new Dictionary<int, Dictionary<int, int>>
+        {
+            [1] = new() { [1] = 40, [2] = 55 },
+            [2] = new() { [1] = 30 },
+        };
+
+        using var workbook = new XLWorkbook(new MemoryStream(MonthlySummaryExcel.Build(s, daily)));
         var ws = workbook.Worksheet(1);
 
         Assert.True(ws.RightToLeft);
@@ -131,7 +152,18 @@ public class MonthlySummaryRulesTests
         Assert.Equal("שרה", ws.Cell(5, 1).GetString());
         Assert.Equal("סה״כ צוות", ws.Cell(6, 1).GetString());
         Assert.Equal(5, ws.Cell(6, 2).GetValue<int>()); // סכום ימי נוכחות
-        Assert.Equal(85m, ws.Cell(6, 11).GetValue<decimal>());
+        Assert.Equal(85m, ws.Cell(6, 8).GetValue<decimal>());
+
+        // עמודה לכל יום (אוקטובר: 31 ימים מעמודה 9), ובסוף סה״כ.
+        Assert.Equal("1/10", ws.Cell(3, 9).GetString());
+        Assert.Equal("31/10", ws.Cell(3, 39).GetString());
+        Assert.Equal("סה״כ הספק", ws.Cell(3, 40).GetString());
+        Assert.Equal(55, ws.Cell(4, 10).GetValue<int>());
+        Assert.True(ws.Cell(5, 10).IsEmpty());
+        Assert.Equal(95, ws.Cell(4, 40).GetValue<int>());
+        Assert.Equal(70, ws.Cell(6, 9).GetValue<int>()); // יום 1 לכל הצוות
+        Assert.Equal(125, ws.Cell(6, 40).GetValue<int>());
+        Assert.DoesNotContain(Enumerable.Range(1, 40), c => ws.Cell(3, c).GetString() == "ימים מעולה");
     }
 }
 

@@ -14,6 +14,12 @@ export interface Employee {
   dailyTarget: number;
   isActive: boolean;
   createdAt: string;
+  deletedAt: string | null;
+}
+
+export interface Holiday {
+  date: string;
+  name: string;
 }
 
 export interface EmployeeUpsert {

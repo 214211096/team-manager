@@ -22,10 +22,10 @@ public static class AttendanceRules
             [AttendanceStatus.Other] = "אחר",
         };
 
-    /// <summary>ימי עבודה: ראשון עד חמישי.</summary>
-    public static bool IsWorkday(DateOnly date) => date.DayOfWeek is not (DayOfWeek.Friday or DayOfWeek.Saturday);
+    /// <summary>ימי עבודה: ראשון עד חמישי, בלי חגים (מזוהים אוטומטית).</summary>
+    public static bool IsWorkday(DateOnly date) => HolidayCalendar.IsWorkday(date);
 
-    /// <summary>התזכורת יוצאת ביום עבודה שאינו מוגדר כחג, החל משעת התזכורת.</summary>
+    /// <summary>התזכורת יוצאת ביום עבודה שלא הוגדר בהגדרות כיום חופש נוסף, החל משעת התזכורת.</summary>
     public static bool IsReminderDue(DateTime localNow, TimeOnly reminderTime, IReadOnlyCollection<DateOnly> noReminderDates)
     {
         var today = DateOnly.FromDateTime(localNow);

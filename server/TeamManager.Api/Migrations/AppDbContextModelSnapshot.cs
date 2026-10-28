@@ -158,6 +158,9 @@ namespace TeamManager.Api.Migrations
                     b.Property<int>("DailyTarget")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 

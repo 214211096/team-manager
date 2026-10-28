@@ -9,7 +9,15 @@ public class MonthlySummaryService(AppDbContext db, IEmailSender email, IConfigu
 {
     public const string EmailType = "MonthlySummary";
 
-    public async Task<MonthlySummaryDto> BuildAsync(int year, int month)
+    public async Task<MonthlySummaryDto> BuildAsync(int year, int month) => (await LoadAsync(year, month)).Summary;
+
+    public async Task<byte[]> BuildExcelAsync(int year, int month)
+    {
+        var (summary, dailyOutput) = await LoadAsync(year, month);
+        return MonthlySummaryExcel.Build(summary, dailyOutput);
+    }
+
+    private async Task<(MonthlySummaryDto Summary, Dictionary<int, Dictionary<int, int>> DailyOutput)> LoadAsync(int year, int month)
     {
         var from = new DateOnly(year, month, 1);
         var to = from.AddMonths(1).AddDays(-1);
@@ -23,13 +31,14 @@ public class MonthlySummaryService(AppDbContext db, IEmailSender email, IConfigu
             .Where(l => l.Type == EmailType && l.ForDate == from && l.Success)
             .MaxAsync(l => (DateTime?)l.SentAt);
 
-        return new MonthlySummaryDto(
+        var summary = new MonthlySummaryDto(
             year,
             month,
             locked,
             sentAt is null ? null : DateTime.SpecifyKind(sentAt.Value, DateTimeKind.Utc),
             MonthlySummaryRules.TeamAverage(statuses, attendance),
             MonthlySummaryRules.BuildRows(employees, attendance, statuses));
+        return (summary, MonthlySummaryRules.DailyOutput(attendance, statuses));
     }
 
     /// <summary>שולח את הסיכום עם קובץ אקסל למנהלות הצוות.</summary>
@@ -41,7 +50,7 @@ public class MonthlySummaryService(AppDbContext db, IEmailSender email, IConfigu
             .ToListAsync(ct);
         if (to.Count == 0) return new ServiceError("אין מנהלת צוות עם כתובת מייל");
 
-        var summary = await BuildAsync(year, month);
+        var (summary, dailyOutput) = await LoadAsync(year, month);
         var baseUrl = config["App:BaseUrl"]?.TrimEnd('/');
         var link = string.IsNullOrEmpty(baseUrl) ? null : $"{baseUrl}/bonuses?month={year}-{month:00}";
 
@@ -51,7 +60,7 @@ public class MonthlySummaryService(AppDbContext db, IEmailSender email, IConfigu
             MonthlySummaryRules.Subject(year, month),
             MonthlySummaryRules.Html(summary, link),
             new DateOnly(year, month, 1),
-            [new EmailAttachment(MonthlySummaryExcel.FileName(year, month), MonthlySummaryExcel.Build(summary), MonthlySummaryExcel.ContentType)]),
+            [new EmailAttachment(MonthlySummaryExcel.FileName(year, month), MonthlySummaryExcel.Build(summary, dailyOutput), MonthlySummaryExcel.ContentType)]),
             ct);
 
         return error is null

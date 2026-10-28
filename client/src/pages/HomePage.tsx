@@ -4,7 +4,8 @@ import { Alert, Button, Card, CardActions, CardContent, Chip, Stack, Typography 
 import { api } from '../api/client';
 import type { AttendanceDay, DailyStatusDay, Rating } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
-import { formatDate, formatSentAt, previousWorkdayIso, ratingColor, ratingLabel, todayIso } from '../attendance';
+import { formatDate, formatSentAt, ratingColor, ratingLabel, toIso, todayIso } from '../attendance';
+import { loadHolidays, previousWorkdayIso } from '../holidays';
 
 /**
  * לוח בית: עובדות פעילות, נוכחות היום, והתפלגות הסטטוס:
@@ -18,12 +19,14 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      api.employees(),
-      api.attendance(todayIso()),
-      api.dailyStatus(todayIso()),
-      api.dailyStatus(previousWorkdayIso()),
-    ])
+    // חודש אחורה מספיק כדי לדלג על כל רצף חגים (למשל ראש השנה שנופל לפני שבת).
+    const monthAgo = new Date();
+    monthAgo.setDate(monthAgo.getDate() - 31);
+    const previousStatus = loadHolidays(toIso(monthAgo), todayIso())
+      .catch(() => new Map<string, string>())
+      .then((holidays) => api.dailyStatus(previousWorkdayIso(holidays)));
+
+    Promise.all([api.employees(), api.attendance(todayIso()), api.dailyStatus(todayIso()), previousStatus])
       .then(([list, day, todayStatus, previousStatus]) => {
         setActiveCount(list.length);
         setAttendance(day);

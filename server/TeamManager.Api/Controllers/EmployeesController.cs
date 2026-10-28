@@ -8,8 +8,8 @@ using TeamManager.Api.Entities;
 namespace TeamManager.Api.Controllers;
 
 /// <summary>
-/// ניהול עובדות. עובדת שעזבה מסומנת לא פעילה כדי לשמור היסטוריה.
-/// מחיקה מותרת רק לעובדת בלי נתונים (למשל נוספה בטעות).
+/// ניהול עובדות. עובדת שעזבה מסומנת לא פעילה.
+/// מחיקה מעבירה לארכיון: העובדת נעלמת מהרשימות הרגילות, ההיסטוריה נשמרת ואפשר לשחזר.
 /// </summary>
 [ApiController]
 [Route("api/employees")]
@@ -17,10 +17,11 @@ namespace TeamManager.Api.Controllers;
 public class EmployeesController(AppDbContext db) : ControllerBase
 {
     [HttpGet]
-    public async Task<IReadOnlyList<EmployeeDto>> List([FromQuery] bool includeInactive = false)
+    public async Task<IReadOnlyList<EmployeeDto>> List([FromQuery] bool includeInactive = false, [FromQuery] bool archived = false)
     {
         var query = db.Employees.AsNoTracking();
-        if (!includeInactive) query = query.Where(e => e.IsActive);
+        if (archived) query = query.Where(e => e.DeletedAt != null);
+        else query = query.Where(e => e.DeletedAt == null && (includeInactive || e.IsActive));
 
         var employees = await query
             .OrderByDescending(e => e.IsActive)
@@ -57,6 +58,8 @@ public class EmployeesController(AppDbContext db) : ControllerBase
     {
         var employee = await db.Employees.FindAsync(id);
         if (employee is null) return NotFound();
+        if (employee.DeletedAt is not null)
+            return Problem(statusCode: StatusCodes.Status409Conflict, title: "העובדת בארכיון, צריך לשחזר אותה לפני עריכה");
 
         // שינוי יעד לא משנה נתוני עבר: היעד נשמר בכל רשומת DailyStatus בנפרד.
         employee.Name = req.Name.Trim();
@@ -73,18 +76,23 @@ public class EmployeesController(AppDbContext db) : ControllerBase
         var employee = await db.Employees.FindAsync(id);
         if (employee is null) return NotFound();
 
-        // ההגדרה ב-DB היא Cascade, לכן בודקים כאן כדי לא למחוק היסטוריה בטעות.
-        var hasHistory =
-            await db.Attendance.AnyAsync(a => a.EmployeeId == id) ||
-            await db.DailyStatuses.AnyAsync(d => d.EmployeeId == id) ||
-            await db.MonthlyBonuses.AnyAsync(b => b.EmployeeId == id) ||
-            await db.ScheduleEntries.AnyAsync(s => s.EmployeeId == id);
-        if (hasHistory)
-            return Problem(statusCode: StatusCodes.Status409Conflict,
-                title: "לעובדת יש נתונים שמורים (נוכחות, ביצוע, בונוס או לוח שנה), אי אפשר למחוק. אפשר לסמן אותה לא פעילה.");
-
-        db.Employees.Remove(employee);
+        // לא פעילה כדי שהשירותים (נוכחות, ביצוע, תזכורות) יתייחסו אליה כמו לעובדת שעזבה.
+        employee.IsActive = false;
+        employee.DeletedAt ??= DateTime.UtcNow;
         await db.SaveChangesAsync();
         return NoContent();
+    }
+
+    [HttpPost("{id:int}/restore")]
+    [Authorize(Roles = nameof(UserRole.TeamLead))]
+    public async Task<ActionResult<EmployeeDto>> Restore(int id)
+    {
+        var employee = await db.Employees.FindAsync(id);
+        if (employee is null) return NotFound();
+
+        employee.DeletedAt = null;
+        employee.IsActive = true;
+        await db.SaveChangesAsync();
+        return EmployeeDto.From(employee);
     }
 }

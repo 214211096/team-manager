@@ -16,9 +16,9 @@ public record ChangePasswordRequest(
 
 public record CurrentUserDto(int Id, string Username, string? DisplayName, string Email, UserRole Role);
 
-public record EmployeeDto(int Id, string Name, int DailyTarget, bool IsActive, DateTime CreatedAt)
+public record EmployeeDto(int Id, string Name, int DailyTarget, bool IsActive, DateTime CreatedAt, DateTime? DeletedAt)
 {
-    public static EmployeeDto From(Employee e) => new(e.Id, e.Name, e.DailyTarget, e.IsActive, e.CreatedAt);
+    public static EmployeeDto From(Employee e) => new(e.Id, e.Name, e.DailyTarget, e.IsActive, e.CreatedAt, e.DeletedAt);
 }
 
 public record EmployeeUpsertRequest(

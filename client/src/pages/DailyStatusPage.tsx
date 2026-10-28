@@ -19,6 +19,7 @@ import {
 import { api, ApiError } from '../api/client';
 import type { DailyStatusDay, DailyStatusEntry, Rating } from '../api/types';
 import { calculateRating, formatDate, ratingColor, ratingLabel, todayIso } from '../attendance';
+import { useDayOff } from '../holidays';
 
 const COMPLETED_MAX = 100000;
 
@@ -38,6 +39,7 @@ function toDrafts(day: DailyStatusDay): Record<number, string> {
 
 export default function DailyStatusPage() {
   const [date, setDate] = useState(todayIso);
+  const dayOff = useDayOff(date);
   const [day, setDay] = useState<DailyStatusDay | null>(null);
   const [drafts, setDrafts] = useState<Record<number, string>>({});
   const [dirty, setDirty] = useState(false);
@@ -143,6 +145,7 @@ export default function DailyStatusPage() {
         {dirty && <Chip size="small" label="יש שינויים שלא נשמרו" />}
       </Stack>
 
+      {dayOff && <Alert severity="info">{dayOff}: לא יום עבודה. אפשר להזין בכל זאת אם עבדו.</Alert>}
       {day.locked && <Alert severity="info">החודש נעול אחרי שליחה לשכר, אי אפשר לשנות ביצוע.</Alert>}
       {message && <Alert severity={message.type}>{message.text}</Alert>}
 

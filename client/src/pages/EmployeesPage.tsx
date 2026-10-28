@@ -12,6 +12,7 @@ import {
   DialogTitle,
   FormControlLabel,
   IconButton,
+  MenuItem,
   Paper,
   Stack,
   Switch,
@@ -27,6 +28,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/DeleteOutlined';
 import EditIcon from '@mui/icons-material/Edit';
+import RestoreIcon from '@mui/icons-material/Restore';
 import { api, ApiError } from '../api/client';
 import type { Employee } from '../api/types';
 
@@ -42,24 +44,38 @@ const schema = z.object({
 type FormInput = z.input<typeof schema>;
 type FormValues = z.output<typeof schema>;
 
+type View = 'active' | 'inactive' | 'archive';
+
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [showInactive, setShowInactive] = useState(false);
+  const [view, setView] = useState<View>('active');
+  const archived = view === 'archive';
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
   // null = סגור, 'new' = הוספה, Employee = עריכה
   const [editing, setEditing] = useState<Employee | 'new' | null>(null);
 
   const load = useCallback(() => {
     api
-      .employees(showInactive)
+      .employees(view === 'inactive', view === 'archive')
       .then((list) => {
-        setEmployees(list);
+        setEmployees(view === 'inactive' ? list.filter((e) => !e.isActive) : list);
         setLoadError(null);
       })
       .catch(() => setLoadError('לא ניתן לטעון את רשימת העובדות'));
-  }, [showInactive]);
+  }, [view]);
 
   useEffect(load, [load]);
+
+  const restore = async (emp: Employee) => {
+    setRestoreError(null);
+    try {
+      await api.restoreEmployee(emp.id);
+      load();
+    } catch (e) {
+      setRestoreError(e instanceof ApiError ? e.message : 'השחזור נכשל');
+    }
+  };
 
   return (
     <Stack spacing={2}>
@@ -67,16 +83,26 @@ export default function EmployeesPage() {
         <Typography variant="h5" component="h1" sx={{ fontWeight: 700, flexGrow: 1 }}>
           ניהול עובדות
         </Typography>
-        <FormControlLabel
-          control={<Switch checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />}
-          label="הצגת לא פעילות"
-        />
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing('new')}>
           הוספת עובדת
         </Button>
       </Stack>
 
+      <TextField
+        select
+        size="small"
+        label="הצגה"
+        value={view}
+        onChange={(e) => setView(e.target.value as View)}
+        sx={{ alignSelf: 'flex-start', minWidth: 180 }}
+      >
+        <MenuItem value="active">פעילות</MenuItem>
+        <MenuItem value="inactive">לא פעילות</MenuItem>
+        <MenuItem value="archive">ארכיון</MenuItem>
+      </TextField>
+
       {loadError && <Alert severity="error">{loadError}</Alert>}
+      {restoreError && <Alert severity="error">{restoreError}</Alert>}
 
       <TableContainer component={Paper}>
         <Table size="small" aria-label="רשימת עובדות">
@@ -84,9 +110,9 @@ export default function EmployeesPage() {
             <TableRow>
               <TableCell>שם</TableCell>
               <TableCell align="center">יעד יומי</TableCell>
-              <TableCell align="center">מצב</TableCell>
+              <TableCell align="center">{archived ? 'נמחקה בתאריך' : 'מצב'}</TableCell>
               <TableCell align="center" width={80}>
-                עריכה
+                {archived ? 'שחזור' : 'עריכה'}
               </TableCell>
             </TableRow>
           </TableHead>
@@ -96,24 +122,34 @@ export default function EmployeesPage() {
                 <TableCell>{emp.name}</TableCell>
                 <TableCell align="center">{emp.dailyTarget}</TableCell>
                 <TableCell align="center">
-                  <Chip
-                    size="small"
-                    label={emp.isActive ? 'פעילה' : 'לא פעילה'}
-                    color={emp.isActive ? 'success' : 'default'}
-                    variant={emp.isActive ? 'filled' : 'outlined'}
-                  />
+                  {emp.deletedAt ? (
+                    new Date(emp.deletedAt).toLocaleDateString('he-IL')
+                  ) : (
+                    <Chip
+                      size="small"
+                      label={emp.isActive ? 'פעילה' : 'לא פעילה'}
+                      color={emp.isActive ? 'success' : 'default'}
+                      variant={emp.isActive ? 'filled' : 'outlined'}
+                    />
+                  )}
                 </TableCell>
                 <TableCell align="center">
-                  <IconButton aria-label={`עריכת ${emp.name}`} onClick={() => setEditing(emp)} size="small">
-                    <EditIcon fontSize="small" />
-                  </IconButton>
+                  {emp.deletedAt ? (
+                    <IconButton aria-label={`שחזור ${emp.name}`} onClick={() => restore(emp)} size="small">
+                      <RestoreIcon fontSize="small" />
+                    </IconButton>
+                  ) : (
+                    <IconButton aria-label={`עריכת ${emp.name}`} onClick={() => setEditing(emp)} size="small">
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
             {employees.length === 0 && !loadError && (
               <TableRow>
                 <TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.secondary' }}>
-                  אין עובדות להצגה
+                  {archived ? 'הארכיון ריק' : view === 'inactive' ? 'אין עובדות לא פעילות' : 'אין עובדות להצגה'}
                 </TableCell>
               </TableRow>
             )}
@@ -225,7 +261,7 @@ function EmployeeDialog({
         </DialogContent>
         {confirmDelete ? (
           <DialogActions>
-            <Typography sx={{ flexGrow: 1, px: 1 }}>למחוק את {employee?.name}? אי אפשר לבטל.</Typography>
+            <Typography sx={{ flexGrow: 1, px: 1 }}>למחוק את {employee?.name}? היא תעבור לארכיון ואפשר לשחזר.</Typography>
             <Button onClick={() => setConfirmDelete(false)}>לא</Button>
             <Button color="error" variant="contained" onClick={onDelete} disabled={deleting}>
               כן, למחוק

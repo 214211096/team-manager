@@ -23,8 +23,7 @@ public class MonthlySummaryController(MonthlySummaryService summary, TimeProvide
     public async Task<IActionResult> Excel(int year, int month)
     {
         if (InvalidMonth(year, month) is { } problem) return problem;
-        var data = await summary.BuildAsync(year, month);
-        return File(MonthlySummaryExcel.Build(data), MonthlySummaryExcel.ContentType, MonthlySummaryExcel.FileName(year, month));
+        return File(await summary.BuildExcelAsync(year, month), MonthlySummaryExcel.ContentType, MonthlySummaryExcel.FileName(year, month));
     }
 
     [HttpPost("send")]

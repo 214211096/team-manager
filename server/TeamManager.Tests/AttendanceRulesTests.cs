@@ -85,6 +85,13 @@ public class AttendanceRulesTests
         Assert.True(AttendanceRules.IsReminderDue(new DateTime(2026, 10, 28, 10, 0, 0), new TimeOnly(9, 30), [holiday]));
     }
 
+    [Fact]
+    public void No_reminder_on_automatic_holiday()
+    {
+        // יום כיפור תשפ"ז: יום שני, בלי הגדרה ידנית.
+        Assert.False(AttendanceRules.IsReminderDue(new DateTime(2026, 9, 21, 10, 0, 0), new TimeOnly(9, 30), []));
+    }
+
     private static readonly DateOnly Day = new(2026, 10, 27);
 
     [Fact]

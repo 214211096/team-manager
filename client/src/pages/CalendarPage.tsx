@@ -27,6 +27,7 @@ import { api, ApiError } from '../api/client';
 import type { AttendanceStatus, Employee, ScheduleEntry } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { formatDate, plannedLabel, statusColor, statusLabel, toIso, todayIso } from '../attendance';
+import { type HolidayMap, loadHolidays } from '../holidays';
 
 const WEEKDAYS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
 
@@ -50,6 +51,7 @@ export default function CalendarPage() {
   });
   const [entries, setEntries] = useState<ScheduleEntry[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [holidays, setHolidays] = useState<HolidayMap>(new Map());
   const [error, setError] = useState<string | null>(null);
   // null = סגור; { date } = רישום חדש מיום מסוים; { entry } = עריכה
   const [editing, setEditing] = useState<{ entry?: ScheduleEntry; date?: string } | null>(null);
@@ -69,6 +71,11 @@ export default function CalendarPage() {
   }, [from, to]);
 
   useEffect(load, [load]);
+  useEffect(() => {
+    loadHolidays(from, to)
+      .then(setHolidays)
+      .catch(() => setHolidays(new Map()));
+  }, [from, to]);
   useEffect(() => {
     api
       .employees()
@@ -127,7 +134,8 @@ export default function CalendarPage() {
           {days.map((d) => {
             const iso = toIso(d);
             const inMonth = d.getMonth() === month.getMonth();
-            const weekend = d.getDay() === 5 || d.getDay() === 6;
+            const holiday = holidays.get(iso);
+            const weekend = d.getDay() === 5 || d.getDay() === 6 || !!holiday;
             const dayEntries = entries.filter((e) => e.startDate <= iso && e.endDate >= iso);
             return (
               <Box
@@ -176,6 +184,11 @@ export default function CalendarPage() {
                   {d.getDate()}
                 </Typography>
                 <Stack spacing={0.5}>
+                  {holiday && (
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, lineHeight: 1.2 }}>
+                      {holiday}
+                    </Typography>
+                  )}
                   {dayEntries.map((e) => (
                     <Chip
                       key={e.id}

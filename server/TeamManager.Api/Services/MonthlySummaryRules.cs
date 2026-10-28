@@ -54,6 +54,24 @@ public static class MonthlySummaryRules
             .ToList();
     }
 
+    /// <summary>
+    /// הספק יומי לאקסל: לכל עובדת, מספר הפריטים לפי יום בחודש.
+    /// רק ימים שבהם סומנה נוכחת, כמו בשאר הסיכום.
+    /// </summary>
+    public static Dictionary<int, Dictionary<int, int>> DailyOutput(
+        IReadOnlyCollection<Attendance> attendance,
+        IReadOnlyCollection<DailyStatus> statuses)
+    {
+        var present = attendance
+            .Where(a => a.Status == AttendanceStatus.Present)
+            .Select(a => (a.EmployeeId, a.Date))
+            .ToHashSet();
+        return statuses
+            .Where(s => present.Contains((s.EmployeeId, s.Date)))
+            .GroupBy(s => s.EmployeeId)
+            .ToDictionary(g => g.Key, g => g.ToDictionary(s => s.Date.Day, s => s.Completed));
+    }
+
     /// <summary>ממוצע על כל ימי הביצוע של הצוות (לא ממוצע של ממוצעים).</summary>
     public static decimal? TeamAverage(IReadOnlyCollection<DailyStatus> statuses, IReadOnlyCollection<Attendance> attendance)
     {
