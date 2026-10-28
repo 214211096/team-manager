@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="TeamManager.Api/TeamManager.Api.csproj" />
+  <Project Path="TeamManager.Tests/TeamManager.Tests.csproj" />
+</Solution>

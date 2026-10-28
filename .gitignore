@@ -1,0 +1,27 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+TestResults/
+
+# Built client copied into the API for production
+server/TeamManager.Api/wwwroot/
+
+# Node / client
+node_modules/
+client/dist/
+
+# Emails saved to disk in development
+server/TeamManager.Api/mail-outbox/
+
+# Local overrides and secrets
+appsettings.Local.json
+appsettings.Production.json
+.env*.local
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+*.tsbuildinfo
