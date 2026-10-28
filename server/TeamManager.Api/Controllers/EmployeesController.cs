@@ -7,7 +7,10 @@ using TeamManager.Api.Entities;
 
 namespace TeamManager.Api.Controllers;
 
-/// <summary>ניהול עובדות. אין מחיקה: עובדת שעזבה מסומנת לא פעילה כדי לשמור היסטוריה.</summary>
+/// <summary>
+/// ניהול עובדות. עובדת שעזבה מסומנת לא פעילה כדי לשמור היסטוריה.
+/// מחיקה מותרת רק לעובדת בלי נתונים (למשל נוספה בטעות).
+/// </summary>
 [ApiController]
 [Route("api/employees")]
 [Authorize]
@@ -61,5 +64,27 @@ public class EmployeesController(AppDbContext db) : ControllerBase
         employee.IsActive = req.IsActive;
         await db.SaveChangesAsync();
         return EmployeeDto.From(employee);
+    }
+
+    [HttpDelete("{id:int}")]
+    [Authorize(Roles = nameof(UserRole.TeamLead))]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var employee = await db.Employees.FindAsync(id);
+        if (employee is null) return NotFound();
+
+        // ההגדרה ב-DB היא Cascade, לכן בודקים כאן כדי לא למחוק היסטוריה בטעות.
+        var hasHistory =
+            await db.Attendance.AnyAsync(a => a.EmployeeId == id) ||
+            await db.DailyStatuses.AnyAsync(d => d.EmployeeId == id) ||
+            await db.MonthlyBonuses.AnyAsync(b => b.EmployeeId == id) ||
+            await db.ScheduleEntries.AnyAsync(s => s.EmployeeId == id);
+        if (hasHistory)
+            return Problem(statusCode: StatusCodes.Status409Conflict,
+                title: "לעובדת יש נתונים שמורים (נוכחות, ביצוע, בונוס או לוח שנה), אי אפשר למחוק. אפשר לסמן אותה לא פעילה.");
+
+        db.Employees.Remove(employee);
+        await db.SaveChangesAsync();
+        return NoContent();
     }
 }

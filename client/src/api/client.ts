@@ -74,6 +74,7 @@ export const api = {
   createEmployee: (data: EmployeeUpsert) => request<Employee>('POST', '/api/employees', data),
   updateEmployee: (id: number, data: EmployeeUpsert) =>
     request<Employee>('PUT', `/api/employees/${id}`, data),
+  deleteEmployee: (id: number) => request<void>('DELETE', `/api/employees/${id}`),
 
   attendance: (date: string) => request<AttendanceDay>('GET', `/api/attendance/${date}`),
   saveAttendance: (date: string, entries: AttendanceEntry[]) =>

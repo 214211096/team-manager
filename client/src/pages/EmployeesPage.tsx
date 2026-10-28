@@ -25,6 +25,7 @@ import {
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/DeleteOutlined';
 import EditIcon from '@mui/icons-material/Edit';
 import { api, ApiError } from '../api/client';
 import type { Employee } from '../api/types';
@@ -144,6 +145,8 @@ function EmployeeDialog({
   onSaved: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const {
     register,
     control,
@@ -166,6 +169,21 @@ function EmployeeDialog({
       onSaved();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'השמירה נכשלה');
+    }
+  };
+
+  const onDelete = async () => {
+    if (!employee) return;
+    setError(null);
+    setDeleting(true);
+    try {
+      await api.deleteEmployee(employee.id);
+      onSaved();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'המחיקה נכשלה');
+      setConfirmDelete(false);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -205,12 +223,27 @@ function EmployeeDialog({
             )}
           </Stack>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={onClose}>ביטול</Button>
-          <Button type="submit" variant="contained" disabled={isSubmitting}>
-            שמירה
-          </Button>
-        </DialogActions>
+        {confirmDelete ? (
+          <DialogActions>
+            <Typography sx={{ flexGrow: 1, px: 1 }}>למחוק את {employee?.name}? אי אפשר לבטל.</Typography>
+            <Button onClick={() => setConfirmDelete(false)}>לא</Button>
+            <Button color="error" variant="contained" onClick={onDelete} disabled={deleting}>
+              כן, למחוק
+            </Button>
+          </DialogActions>
+        ) : (
+          <DialogActions>
+            {employee && (
+              <Button color="error" startIcon={<DeleteIcon />} onClick={() => setConfirmDelete(true)} sx={{ me: 'auto' }}>
+                מחיקה
+              </Button>
+            )}
+            <Button onClick={onClose}>ביטול</Button>
+            <Button type="submit" variant="contained" disabled={isSubmitting}>
+              שמירה
+            </Button>
+          </DialogActions>
+        )}
       </form>
     </Dialog>
   );
